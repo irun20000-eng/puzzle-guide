@@ -1,0 +1,15 @@
+{
+  "name": "puzzle-guide",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "스도쿠와 고양이 자리 퍼즐을 입문부터 배우고 푸는 학습 웹앱",
+  "scripts": {
+    "build": "node build.mjs",
+    "packs": "node tools/make-packs.mjs",
+    "font": "node tools/make-font.mjs",
+    "test": "node --test",
+    "feasibility:sudoku": "node tools/feasibility/sudoku.mjs 400",
+    "feasibility:cats": "node tools/feasibility/queens.mjs 100"
+  }
+}

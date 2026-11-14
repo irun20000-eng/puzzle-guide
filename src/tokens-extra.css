@@ -1,0 +1,5 @@
+/* 토큰 보탬(DESIGN.md 12절): 대비 높이기 설정에서 머리카락 선을 진하게, 구역 무늬를 .28로. 값은 tokens.css 의 같은 색을 쓴다. */
+@media (prefers-contrast: more){
+  :root{--hair:var(--hair-strong);--zone-pattern:rgba(26,25,23,.28)}
+  :root[data-theme="dark"]{--zone-pattern:rgba(244,241,234,.28)}
+}

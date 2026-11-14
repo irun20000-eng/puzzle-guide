@@ -1,0 +1,135 @@
+/* ==========================================================================
+   퍼즐 놀이터 · 디자인 토큰 (방향: 「먹과 종이」 / 퍼즐 = 경쾌·놀이)
+   출처: 디자인 명세 DESIGN.md
+   쓰는 법: 이 파일을 그대로 style.css 맨 위에 붙인다. 화면 CSS에는 hex를 쓰지 않고 var()만 쓴다.
+   테마: 기본은 기기 설정. <html data-theme="light|dark">가 있으면 그것을 따른다.
+   ========================================================================== */
+
+/* ---------- 1. 가족 공통(체스 첫걸음과 같은 값) ---------- */
+:root{
+  color-scheme: light;
+
+  --canvas:      #F6F5F2;
+  --surface:     #FFFFFF;
+  --surface-2:   #EFEEEA;
+  --surface-3:   #E6E4DF;
+  --hair:        #E2E0DA;
+  --hair-strong: #C9C6BE;
+  --ink:         #1A1917;   /* 16.11:1 */
+  --ink-2:       #4A4844;   /* 8.37:1 */
+  --sub:         #67645E;   /* 5.41:1 */
+  --scrim:       rgba(20,19,17,.44);
+
+  --ok:        #1E7F55;  --ok-soft:  #E3F3EA;
+  --bad:       #C2352B;  --bad-soft: #FBE8E5;
+  --on-status: #FFFFFF;
+
+  --font: "PD", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --fs-display: 40px;  --lh-display: 1.1;  --ls-display: -0.03em;
+  --fs-title:   28px;  --lh-title:   1.22; --ls-title:   -0.025em;
+  --fs-head:    22px;  --lh-head:    1.3;  --ls-head:    -0.02em;
+  --fs-sub:     18px;  --lh-sub:     1.4;  --ls-sub:     -0.01em;
+  --fs-btn:     17px;  --lh-btn:     1.2;
+  --fs-body:    16px;  --lh-body:    1.55;
+  --fs-small:   14px;  --lh-small:   1.45; --ls-label: 0.01em;
+  --fw-regular: 400;   --fw-bold: 700;
+
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px; --sp-16: 64px;
+  --gutter: 20px;
+  --gutter-board: 12px;
+
+  --tap: 48px; --tap-lg: 56px; --bar-h: 56px; --dock-h: 64px;
+
+  --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 24px; --r-full: 999px;
+
+  --ring-hair:   inset 0 0 0 1px var(--hair);
+  --ring-strong: inset 0 0 0 1px var(--hair-strong);
+  --ring-focus:  0 0 0 2px var(--canvas), 0 0 0 4px var(--focus);
+
+  --ease-out:   cubic-bezier(.23,1,.32,1);
+  --ease-move:  cubic-bezier(.65,0,.35,1);
+  --ease-sheet: cubic-bezier(.32,.72,0,1);
+  --spring:     linear(0, .25 7%, .62 15%, .92 24%, 1.06 33%, 1.07 40%, 1.03 50%, .995 62%, 1 76%, 1);
+  --t-press: 120ms; --t-small: 180ms; --t-enter: 240ms; --t-sheet: 280ms; --t-pop: 360ms;
+  --stagger: 60ms;
+}
+
+/* ---------- 2. 퍼즐 전용 ---------- */
+:root{
+  /* 2-1 행동색 1개: 귤색. 글자는 먹색(흰 글자 아님) */
+  --acc:      #EE5A28;   /* 주 단추 면. 먹 글자 5.13, canvas 대비 3.14 */
+  --on-acc:   #1A1917;
+  --acc-ink:  #A93C12;   /* 강조 글자·내가 넣은 숫자. 흰 면 6.1, acc-soft 위 5.18 */
+  --acc-soft: #FFE4D6;   /* 선택 칸, 강조 면 */
+  --focus:    #A93C12;
+
+  /* 2-2 스도쿠 판 */
+  --grid-cell:  #FFFFFF;
+  --grid-line:  #D9D6CF;   /* 칸 사이 1px */
+  --grid-box:   #3B3936;   /* 상자 경계 2px, 판 바깥 2px */
+  --digit-given:#1A1917;   /* 처음 주어진 숫자 700 */
+  --digit-user: #A93C12;   /* 내가 넣은 숫자 700 */
+  --digit-memo: #4A4844;   /* 메모 숫자 700 */
+  --cell-peer:  #EFEEEA;   /* 같은 줄·상자 */
+  --cell-same:  #FFD3BD;   /* 같은 숫자 */
+  --cell-sel:   #FFE4D6;   /* 선택 칸 면 + 2px acc 안쪽 선 */
+
+  /* 2-3 고양이 자리 구역 색 10개 (면 + 무늬 + 명도). 순서 = 생성기가 주는 구역 번호 */
+  --zone-1:#F6D69A;  --zone-2:#BFE0F5;  --zone-3:#A8DCC6;  --zone-4:#F3EC9E;  --zone-5:#A9C6EA;
+  --zone-6:#F5BE9F;  --zone-7:#EBC0D8;  --zone-8:#D8D5CE;  --zone-9:#DCC6A6;  --zone-10:#C7C3E8;
+  --zone-pattern: rgba(26,25,23,.16);  /* 무늬 선·점 */
+  --zone-edge:    #3B3936;             /* 구역 경계 3px */
+  --zone-line:    rgba(26,25,23,.14);  /* 같은 구역 칸 사이 1px */
+  --cat-body:  #2A2826;  --cat-shade:#1A1917;  --cat-eye:#F6F5F2;  --cat-nose:#EE5A28;
+  --mark-x:    #4A4844;                /* × 표시 (모든 구역 위 5.19 이상) */
+  --conflict:  #C2352B;                /* 닿는 고양이·겹친 숫자 */
+
+  /* 2-4 퍼즐의 개성 값 */
+  --r-card: var(--r-xl);      /* 카드 24 */
+  --r-btn:  var(--r-full);    /* 단추 알약 */
+  --r-board: var(--r-lg);     /* 판 받침 16 */
+  --track-eyebrow: 0.02em;
+}
+
+/* ---------- 3. 어두운 화면 ---------- */
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --canvas:#121211; --surface:#1C1B1A; --surface-2:#262523; --surface-3:#302F2C;
+  --hair:#33322F; --hair-strong:#4A4844;
+  --ink:#F1EFEA; --ink-2:#C9C6BE; --sub:#A29F98; --scrim:rgba(0,0,0,.56);
+  --ok:#5FD39A; --ok-soft:#17291F; --bad:#FF8A80; --bad-soft:#33201D; --on-status:#121211;
+
+  --acc:#FF8A5B; --on-acc:#121211; --acc-ink:#FF9D74; --acc-soft:#3A2219; --focus:#FF9D74;
+  --grid-cell:#1C1B1A; --grid-line:#3A3936; --grid-box:#C9C6BE;
+  --digit-given:#F1EFEA; --digit-user:#FF9D74; --digit-memo:#C9C6BE;
+  --cell-peer:#262523; --cell-same:#4A2A1C; --cell-sel:#3A2219;
+  --zone-1:#6B4E1E; --zone-2:#2D5A73; --zone-3:#1F5E4B; --zone-4:#66601F; --zone-5:#2B4A7A;
+  --zone-6:#7A3F25; --zone-7:#6E3A5A; --zone-8:#4A4844; --zone-9:#5E4A33; --zone-10:#4B4775;
+  --zone-pattern:rgba(244,241,234,.16); --zone-edge:#E6E2DA; --zone-line:rgba(244,241,234,.14);
+  --cat-body:#F4F1EA; --cat-shade:#D8D4CC; --cat-eye:#1A1917; --cat-nose:#FF8A5B;
+  --mark-x:#D8D4CC; --conflict:#FF8A80;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --canvas:#121211; --surface:#1C1B1A; --surface-2:#262523; --surface-3:#302F2C;
+    --hair:#33322F; --hair-strong:#4A4844;
+    --ink:#F1EFEA; --ink-2:#C9C6BE; --sub:#A29F98; --scrim:rgba(0,0,0,.56);
+    --ok:#5FD39A; --ok-soft:#17291F; --bad:#FF8A80; --bad-soft:#33201D; --on-status:#121211;
+    --acc:#FF8A5B; --on-acc:#121211; --acc-ink:#FF9D74; --acc-soft:#3A2219; --focus:#FF9D74;
+    --grid-cell:#1C1B1A; --grid-line:#3A3936; --grid-box:#C9C6BE;
+    --digit-given:#F1EFEA; --digit-user:#FF9D74; --digit-memo:#C9C6BE;
+    --cell-peer:#262523; --cell-same:#4A2A1C; --cell-sel:#3A2219;
+    --zone-1:#6B4E1E; --zone-2:#2D5A73; --zone-3:#1F5E4B; --zone-4:#66601F; --zone-5:#2B4A7A;
+    --zone-6:#7A3F25; --zone-7:#6E3A5A; --zone-8:#4A4844; --zone-9:#5E4A33; --zone-10:#4B4775;
+    --zone-pattern:rgba(244,241,234,.16); --zone-edge:#E6E2DA; --zone-line:rgba(244,241,234,.14);
+    --cat-body:#F4F1EA; --cat-shade:#D8D4CC; --cat-eye:#1A1917; --cat-nose:#FF8A5B;
+    --mark-x:#D8D4CC; --conflict:#FF8A80;
+  }
+}
+
+/* ---------- 4. 움직임 줄이기 ---------- */
+@media (prefers-reduced-motion: reduce){
+  :root{ --t-press:0ms; --t-small:0ms; --t-enter:0ms; --t-sheet:0ms; --t-pop:0ms; --stagger:0ms; }
+}
