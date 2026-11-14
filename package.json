@@ -1,6 +1,6 @@
 {
   "name": "puzzle-guide",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "스도쿠와 고양이 자리 퍼즐을 입문부터 배우고 푸는 학습 웹앱",

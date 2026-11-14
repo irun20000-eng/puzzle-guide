@@ -77,6 +77,41 @@ test('설치: manifest와 아이콘, 서비스 워커(주소로 열 때만)', as
   assert.match(html, /serviceWorker\.register\('sw\.js'\)/);
 });
 
+// PNG 머리(IHDR)에서 실제 크기를 읽는다
+async function pngSize(url) {
+  const b = await readFile(url);
+  assert.equal(b.toString('latin1', 1, 4), 'PNG', String(url));
+  return b.readUInt32BE(16) + 'x' + b.readUInt32BE(20);
+}
+
+test('설치 기준: manifest id·scope, 아이콘·스크린샷 크기가 실제 그림과 같고, 서비스 워커에 fetch 처리기가 있다', async () => {
+  const root = new URL('../', import.meta.url);
+  const mf = JSON.parse(await readFile(new URL('manifest.webmanifest', root), 'utf8'));
+  assert.equal(mf.id, '/puzzle-guide/');
+  assert.equal(mf.start_url, './');
+  assert.equal(mf.scope, './');
+  assert.ok(mf.description && mf.description.length >= 10);
+  for (const i of mf.icons.filter((x) => x.type === 'image/png')) assert.equal(await pngSize(new URL(i.src, root)), i.sizes, i.src);
+  for (const s of mf.screenshots || []) {
+    assert.equal(await pngSize(new URL(s.src, root)), s.sizes, s.src);
+    assert.ok(['narrow', 'wide'].includes(s.form_factor), s.src);
+  }
+  const sw = await readFile(new URL('sw.js', root), 'utf8');
+  assert.match(sw, /addEventListener\('fetch'/);
+});
+
+test('설치 단추: 설치 창 이벤트를 받아 두고, 앱으로 열렸으면 숨기고, 이벤트가 없으면 안내 시트', async () => {
+  const app = await readFile(new URL('../src/ui/app.js', import.meta.url), 'utf8');
+  assert.match(app, /addEventListener\('beforeinstallprompt'/);
+  assert.match(app, /addEventListener\('appinstalled'/);
+  assert.match(app, /display-mode: standalone/);
+  assert.match(app, /navigator\.standalone === true/);
+  assert.match(app, /data-act="install"/);
+  assert.equal(/beforeinstallprompt[^\n]*preventDefault/.test(app), false, '브라우저 자체 설치 안내는 막지 않는다');
+  const card = /function installCard\(\) \{[\s\S]*?\n\}/.exec(app)[0];
+  assert.equal(card.includes('btn primary'), false, '설치 단추는 보조 단추');
+});
+
 test('이름 원칙: 화면 문구에 다른 게임 이름이 없고, 스타 배틀은 퍼즐 이야기에서만', async () => {
   const { out } = await getBuilt();
   const html = await readFile(out, 'utf8');

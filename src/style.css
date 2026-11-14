@@ -388,3 +388,7 @@ button.tile:active{transform:scale(.98)}
   .lesson-body{max-width:720px}
   .card-step .boardwrap{width:min(440px,100%);margin:0 auto}
 }
+.install{margin-top:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-2)} .install .btn{margin-top:var(--sp-1)}
+.inst-list{display:flex;flex-direction:column;gap:var(--sp-2)}
+.inst-block{background:var(--surface-2);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2)}
+.inst-steps{margin:0;padding-left:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-1)}
