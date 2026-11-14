@@ -79,10 +79,12 @@ test('설정: 기본값, 잘못된 값 거르기, 화면 밝기, 새로 생긴 �
   assert.equal(loadSettings(mem).challenge, true);
   assert.equal(resolveTheme('auto', true), 'dark');
   assert.equal(resolveTheme('auto', false), 'light');
-  assert.equal(APP_VERSION, '1.0.0');
-  assert.ok(WHATS_NEW.every((n) => n.v === '1.0.0'));
+  assert.equal(APP_VERSION, '1.0.1');
+  assert.ok(WHATS_NEW.every((n) => ['1.0.0', '1.0.1'].includes(n.v)));
+  assert.equal(WHATS_NEW[0].v, APP_VERSION);
   assert.equal(newsSince('').length, WHATS_NEW.length);
-  assert.equal(newsSince('1.0.0').length, 0);
+  assert.equal(newsSince('1.0.0').length, 1);
+  assert.equal(newsSince('1.0.1').length, 0);
   assert.equal(shouldShowNews({ seen: '' }, false), false);
   assert.equal(shouldShowNews({ seen: '' }, true), true);
 });

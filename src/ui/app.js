@@ -32,6 +32,64 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 
+// ── 앱으로 설치 ──
+// Chrome 등은 설치할 수 있을 때 beforeinstallprompt 를 보낸다. 받아 두었다가 「홈 화면에 앱으로 설치」를 누르면 설치 창을 띄운다.
+// 이벤트가 오지 않는 브라우저(아이폰 Safari 등)에는 단계 안내 시트를 보여 준다. 이미 앱으로 열렸으면 단추를 숨긴다.
+// preventDefault 는 부르지 않는다(브라우저가 스스로 띄우는 설치 안내도 그대로 둔다).
+const INSTALL = { evt: null, done: false };
+function isStandalone() {
+  const mm = (q) => Boolean(window.matchMedia && window.matchMedia(q).matches);
+  return mm('(display-mode: standalone)') || mm('(display-mode: fullscreen)') || mm('(display-mode: minimal-ui)') || window.navigator.standalone === true;
+}
+function canOfferInstall() { return /^https?:$/.test(location.protocol) && !INSTALL.done && !isStandalone(); }
+function installPlatform() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'pc';
+}
+const rerenderInstall = () => { if (APP.route.name === 'home' || APP.route.name === 'more') render(); };
+window.addEventListener('beforeinstallprompt', (e) => { INSTALL.evt = e; rerenderInstall(); });
+window.addEventListener('appinstalled', () => {
+  INSTALL.evt = null; INSTALL.done = true;
+  if (APP.sheet && APP.sheet.label === '앱으로 설치') { APP.sheet = null; closeOverlay(); }
+  toast('홈 화면에 퍼즐 놀이터를 담았어요.');
+});
+async function doInstall() {
+  const e = INSTALL.evt;
+  if (e) {
+    INSTALL.evt = null; // 한 이벤트로는 설치 창을 한 번만 띄울 수 있다
+    try {
+      await e.prompt();
+      const choice = await e.userChoice;
+      if (choice && choice.outcome === 'accepted') INSTALL.done = true;
+      rerenderInstall();
+      return;
+    } catch (err) { /* 아래 안내 시트로 */ }
+  }
+  openOverlay(); APP.sheet = installSheet(); render();
+}
+function installSheet() {
+  return {
+    label: '앱으로 설치',
+    html: () => {
+      const blocks = {
+        ios: ['아이폰·아이패드 (Safari)', ['주소창 옆 공유 단추(네모에서 화살표가 나오는 모양)를 눌러요. 안 보이면 ··· 단추를 먼저 눌러요.', '「홈 화면에 추가」를 골라요. 안 보이면 목록을 아래로 내려요.', '「추가」를 누르면 홈 화면에 퍼즐 놀이터가 생겨요.']],
+        android: ['안드로이드 (Chrome)', ['오른쪽 위 ⋮ 단추를 눌러요.', '「앱 설치」를 눌러요. 없으면 「홈 화면에 추가」를 눌러요.', '「설치」를 누르면 홈 화면에 퍼즐 놀이터가 생겨요.']],
+        pc: ['컴퓨터 (Chrome·Edge)', ['주소창 오른쪽 끝의 설치 아이콘을 눌러요. 없으면 ⋮ 또는 ··· 메뉴에서 설치 항목을 찾아요.', '「설치」를 누르면 창 하나로 열리는 앱이 돼요.']],
+      };
+      const mine = installPlatform();
+      const order = [mine, ...['ios', 'android', 'pc'].filter((k) => k !== mine)];
+      const block = (k) => `<section class="inst-block"><div class="row-between"><span class="t-body-b">${blocks[k][0]}</span>${k === mine ? chip('이 기기', 'acc') : ''}</div><ol class="inst-steps">${blocks[k][1].map((s) => `<li class="t-small c-ink2">${uiEsc(s)}</li>`).join('')}</ol></section>`;
+      return `<div class="t-head">홈 화면에 앱으로 설치</div><p class="t-small c-sub">설치하면 주소창 없이 앱처럼 열리고, 인터넷이 없어도 열려요.</p><div class="inst-list">${order.map(block).join('')}</div><p class="t-small c-sub">카카오톡 같은 앱 안에서 열었다면 먼저 Safari나 Chrome으로 열어 주세요. 삼성 인터넷 등 다른 브라우저는 메뉴에서 「홈 화면에 추가」 항목을 찾아요.</p><button class="btn secondary block" data-act="closesheet">닫기</button>`;
+    },
+  };
+}
+function installCard() {
+  if (!canOfferInstall()) return '';
+  return `<div class="card tight install rise"><div class="t-body-b">앱처럼 쓰기</div><p class="t-small c-ink2">홈 화면에 담으면 주소창 없이 열리고, 인터넷이 없어도 열려요.</p><button class="btn secondary block" data-act="install">${icon('download')}홈 화면에 앱으로 설치</button></div>`;
+}
+
 // ── 주소 ──
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 function parseHash() {
@@ -206,6 +264,7 @@ function screenHome() {
       <button class="li" data-act="nav" data-arg="#/glossary">${icon('book', 'c-ink2')}<span class="grow t-body">용어 사전</span>${icon('chev', 's20 c-sub')}</button>
       <button class="li" data-act="nav" data-arg="#/story">${icon('info', 'c-ink2')}<span class="grow t-body">퍼즐 이야기</span>${icon('chev', 's20 c-sub')}</button>
     </div>
+    ${installCard()}
     ${APP.store.canSave() ? '' : `<div class="banner" role="status">${icon('cloudoff')}<span>이 기기에서는 기록을 저장할 수 없어요. 창을 닫으면 기록이 사라져요.</span></div>`}
   </div>`;
 }
@@ -935,7 +994,7 @@ function screenRecords() {
 function screenMore() {
   const li = (hash, ic, label, val = '') => `<button class="li" data-act="nav" data-arg="${hash}">${icon(ic, 'c-ink2')}<span class="grow t-body">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${icon('chev', 's20 c-sub')}</button>`;
   return `${appBar('더보기', { right: profileBtn() })}<div class="scroll">
-    <div class="list rise">${li('#/settings', 'gear', '설정')}<button class="li" data-act="profiles">${icon('home', 'c-ink2')}<span class="grow t-body">프로필</span><span class="val">${APP.store.profiles().length} / 5</span>${icon('chev', 's20 c-sub')}</button>${li('#/glossary', 'book', '용어 사전')}${li('#/story', 'info', '퍼즐 이야기')}${li('#/news', 'sparkle', '새로 생긴 것', 'v' + APP_VERSION)}</div>
+    <div class="list rise">${li('#/settings', 'gear', '설정')}<button class="li" data-act="profiles">${icon('home', 'c-ink2')}<span class="grow t-body">프로필</span><span class="val">${APP.store.profiles().length} / 5</span>${icon('chev', 's20 c-sub')}</button>${li('#/glossary', 'book', '용어 사전')}${li('#/story', 'info', '퍼즐 이야기')}${li('#/news', 'sparkle', '새로 생긴 것', 'v' + APP_VERSION)}${canOfferInstall() ? `<button class="li" data-act="install">${icon('download', 'c-ink2')}<span class="grow t-body">홈 화면에 앱으로 설치</span>${icon('chev', 's20 c-sub')}</button>` : ''}</div>
     <div class="card tight about"><div class="t-label c-sub">퍼즐 놀이터 v${APP_VERSION}</div><p class="t-small c-ink2">인터넷 없이 열리는 한 파일 앱이에요. 기록은 이 기기 안에만 저장되고 밖으로 보내지 않아요.</p><p class="t-small c-sub">퍼즐과 그림, 문제는 직접 만들었어요. 앱 코드는 MIT 라이선스예요.</p></div>
     <div class="card tight about"><div class="t-label c-sub">글꼴</div><p class="t-small c-ink2">이 앱의 글꼴은 Pretendard에서 앱에 쓰인 글자만 잘라 이름을 바꾼 것이에요(PG Sans).</p><p class="t-small c-sub legal">Copyright (c) 2021, Kil Hyung-jin, with Reserved Font Name 'Pretendard'.<br>Copyright 2014-2021 Adobe, with Reserved Font Name 'Source'.<br>Copyright (c) 2016 The Inter Project Authors, with Reserved Font Name 'Inter'.<br>Copyright 2021 The M+ FONTS Project Authors, with Reserved Font Name 'M PLUS 1'.</p><p class="t-small c-sub">SIL Open Font License 1.1에 따라 써요. 라이선스 전문은 앱 저장소의 THIRD-PARTY-LICENSES.md와 openfontlicense.org에 있어요.</p></div>
   </div>`;
@@ -1081,6 +1140,7 @@ appRoot.addEventListener('click', (e) => {
     case 'level': openOverlay(); APP.sheet = levelSheet(); render(); return;
     case 'playmore': openOverlay(); APP.sheet = playMoreSheet(); render(); return;
     case 'closesheet': closeOverlay(); APP.sheet = null; render(); return;
+    case 'install': doInstall(); return;
     case 'closedialog': APP.dialog = null; if (!APP.sheet) closeOverlay(); else APP.restoreFocus = APP.dialogOpener; render(); return;
     case 'dialogok': { const fn = APP.dialog && APP.dialog.onOk; APP.dialog = null; if (fn) fn(); if (!APP.sheet && !APP.dialog) closeOverlay(); render(); return; }
     case 'setlevel': APP.store.setLevel(arg); APP.sheet = null; closeOverlay(); render(); return;
@@ -1217,5 +1277,5 @@ if (shouldShowNews(APP.settings, APP.store.profiles().length > 0)) {
   APP.dialog = { html: `<div class="t-head">새로 생긴 것</div>${newsList(newsSince(APP.settings.seen))}<div class="acts"><button class="btn primary" data-act="dialogok">좋아요</button></div>`, onOk: () => setSetting('seen', APP_VERSION) };
 } else if (!APP.store.profiles().length) APP.settings = saveSettings(uiStorage, { ...APP.settings, seen: APP_VERSION });
 // 화면 점검·생성 시간 측정용(앱 동작에는 쓰지 않음)
-window.__puzzleGuide = { APP, version: APP_VERSION, gen: { practiceCats, practiceSudoku, dailyPuzzles } };
+window.__puzzleGuide = { APP, INSTALL, version: APP_VERSION, gen: { practiceCats, practiceSudoku, dailyPuzzles } };
 route();
