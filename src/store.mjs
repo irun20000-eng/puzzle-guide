@@ -1,8 +1,12 @@
 // 프로필과 진행도 저장. 기기 안(localStorage)에만 저장하고 밖으로 보내지 않는다(바둑 첫걸음 store 를 고쳐 씀).
 // storage 는 getItem/setItem 을 가진 객체. 저장이 막힌 환경에서도 앱은 동작한다(저장만 안 됨).
-// 형식(version 1): { version, rev, current, profiles: [{ id, name, color, level, done, missions, daily, best, inProgress, review, last }] }
+// 형식(version 1, rev 2): { version, rev, current, profiles: [{ id, name, color, level, done, missions, daily, best, progress, review, last }] }
+// rev 2(v1.0.2): 오늘의 퍼즐 기록을 날짜 × 난이도 × 퍼즐로 나눔 daily[date][level] = { sudoku, cats, sudokuHelp, catsHelp, gen },
+//   진행 중 저장을 퍼즐별 여러 칸으로 progress[key] = { state, at }(오늘의 퍼즐 난이도×퍼즐 최대 6칸 + 자유 연습 1칸).
+//   rev 1 기록(daily[date] = { sudoku, cats, level, ... }, inProgress 한 칸)은 읽을 때 옮긴다(level 이 없으면 쉬움).
 export const STORE_KEY = 'puzzle-guide:v1';
-export const STORE_REV = 1;
+export const STORE_REV = 2;
+export const MAX_PROGRESS = 7;
 export const MAX_PROFILES = 5;
 export const MAX_NAME = 8;
 export const MAX_REVIEW = 60;
@@ -22,31 +26,100 @@ function isValid(d) {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const secs = (v) => (Number.isFinite(v) && v >= 0 && v < 360000 ? Math.round(v) : null);
 
+const PUZZLES = ['sudoku', 'cats'];
+
+// 한 난이도 칸 { sudoku, cats, sudokuHelp, catsHelp, gen } 을 고른다. 푼 것이 없으면 null.
+function cleanLevelEntry(v) {
+  if (!v || typeof v !== 'object') return null;
+  const e = {};
+  for (const w of PUZZLES) {
+    if (secs(v[w]) === null) continue;
+    e[w] = secs(v[w]);
+    // 힌트 3단계로 채운 판(혼자 푼 기록이 없을 때만 남는다)
+    if (v[w + 'Help'] === true) e[w + 'Help'] = true;
+  }
+  if (Number.isInteger(v.gen)) e.gen = v.gen;
+  return e.sudoku !== undefined || e.cats !== undefined ? e : null;
+}
+
+// 같은 난이도 칸 둘을 합친다(혼자 푼 기록 > 힌트 기록, 같은 종류면 더 빠른 것)
+function mergeLevelEntry(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const e = { ...a };
+  for (const w of PUZZLES) {
+    if (b[w] === undefined) continue;
+    const hk = w + 'Help';
+    if (e[w] === undefined || (e[hk] && !b[hk])) { e[w] = b[w]; if (b[hk]) e[hk] = true; else delete e[hk]; }
+    else if (Boolean(e[hk]) === Boolean(b[hk])) e[w] = Math.min(e[w], b[w]);
+  }
+  if (b.gen !== undefined && e.gen === undefined) e.gen = b.gen;
+  return e;
+}
+
+// 하루 칸: rev 2 형식 { easy: {...}, normal: {...}, hard: {...} }.
+// rev 1 형식(맨 위에 sudoku·cats·level)은 그 level(없으면 easy) 칸으로 옮긴다. 이미 옮긴 칸에 다시 돌려도 그대로다.
+export function migrateDay(v) {
+  if (!v || typeof v !== 'object') return null;
+  const out = {};
+  for (const lv of LEVELS) { const e = cleanLevelEntry(v[lv]); if (e) out[lv] = e; }
+  const old = cleanLevelEntry(v);
+  if (old) { const lv = LEVELS.includes(v.level) ? v.level : 'easy'; out[lv] = mergeLevelEntry(out[lv], old); }
+  return Object.keys(out).length ? out : null;
+}
+
 function cleanDaily(daily) {
   const out = {};
   if (!daily || typeof daily !== 'object') return out;
   const keys = Object.keys(daily).filter((k) => DATE_RE.test(k)).sort().slice(-MAX_DAILY);
   for (const k of keys) {
-    const v = daily[k] || {};
-    const e = {};
-    if (secs(v.sudoku) !== null) e.sudoku = secs(v.sudoku);
-    if (secs(v.cats) !== null) e.cats = secs(v.cats);
-    if (Number.isInteger(v.gen)) e.gen = v.gen;
-    if (LEVELS.includes(v.level)) e.level = v.level;
-    // 힌트 3단계로 채운 판(혼자 푼 기록이 없을 때만 남는다)
-    if (v.sudokuHelp === true && e.sudoku !== undefined) e.sudokuHelp = true;
-    if (v.catsHelp === true && e.cats !== undefined) e.catsHelp = true;
-    if (e.sudoku !== undefined || e.cats !== undefined) out[k] = e;
+    const day = migrateDay(daily[k]);
+    if (day) out[k] = day;
   }
   return out;
 }
 
-function cleanInProgress(v) {
-  if (!v || typeof v !== 'object' || typeof v.key !== 'string' || v.key.length > 60) return null;
-  if (typeof v.state !== 'object' || !v.state) return null;
+// 하루 기록 요약: 퍼즐마다 'solo'(어느 난이도든 혼자 풂) | 'help'(힌트와 함께만) | null
+export function dayFlags(day) {
+  const f = { sudoku: null, cats: null };
+  if (!day) return f;
+  for (const lv of LEVELS) {
+    const e = day[lv];
+    if (!e) continue;
+    for (const w of PUZZLES) if (e[w] !== undefined) f[w] = !e[w + 'Help'] || f[w] === 'solo' ? 'solo' : 'help';
+  }
+  return f;
+}
+
+function cleanProgressItem(v) {
+  if (!v || typeof v !== 'object' || typeof v.state !== 'object' || !v.state) return null;
   const json = JSON.stringify(v.state);
   if (json.length > 4000) return null;
-  return { key: v.key, state: JSON.parse(json), at: Number.isFinite(v.at) ? v.at : 0 };
+  return { state: JSON.parse(json), at: Number.isFinite(v.at) ? v.at : 0 };
+}
+
+const PROGRESS_KEY_RE = /^(?:daily-(?:sd|ct)-\d{4}-\d{2}-\d{2}-(?:easy|normal|hard)|free)$/;
+
+// 진행 중 저장 여러 칸. rev 1 의 inProgress(한 칸)도 옮긴다. 새 것부터 MAX_PROGRESS 칸.
+function cleanProgress(map, oldOne) {
+  const items = [];
+  if (map && typeof map === 'object') for (const [k, v] of Object.entries(map)) {
+    const c = PROGRESS_KEY_RE.test(k) ? cleanProgressItem(v) : null;
+    if (c) items.push([k, c]);
+  }
+  if (oldOne && typeof oldOne === 'object' && typeof oldOne.key === 'string' && PROGRESS_KEY_RE.test(oldOne.key) && !items.some(([k]) => k === oldOne.key)) {
+    const c = cleanProgressItem(oldOne);
+    if (c) items.push([oldOne.key, c]);
+  }
+  items.sort((a, b) => b[1].at - a[1].at);
+  return Object.fromEntries(items.slice(0, MAX_PROGRESS));
+}
+
+// 지난 날짜의 오늘의 퍼즐 진행은 지운다(자유 연습 칸은 남김)
+function pruneProgressMap(map, today) {
+  const out = {};
+  for (const [k, v] of Object.entries(map || {})) if (k === 'free' || k.slice(9, 19) === today) out[k] = v;
+  return out;
 }
 
 // 예전 형식이나 빠진 칸이 있는 자료를 지금 형식으로 맞춘다. 맞출 수 없으면 null.
@@ -70,7 +143,7 @@ export function migrateData(d) {
       level: LEVELS.includes(p.level) ? p.level : 'easy',
       done, missions, best, review,
       daily: cleanDaily(p.daily),
-      inProgress: cleanInProgress(p.inProgress),
+      progress: cleanProgress(p.progress, p.inProgress),
       last: typeof p.last === 'string' ? p.last : null,
     };
   });
@@ -137,7 +210,7 @@ export function createStore(storage) {
       const colors = data.profiles.map((p) => p.color);
       let color = 0;
       while (colors.includes(color) && color < MAX_PROFILES) color++;
-      const profile = { id: 'p' + n, name: clean, color, level: 'easy', done: {}, missions: {}, best: {}, daily: {}, inProgress: null, review: [], last: null };
+      const profile = { id: 'p' + n, name: clean, color, level: 'easy', done: {}, missions: {}, best: {}, daily: {}, progress: {}, review: [], last: null };
       data.profiles.push(profile);
       data.current = profile.id;
       save();
@@ -180,27 +253,28 @@ export function createStore(storage) {
     missionDone: (id) => withP((p) => Boolean(p.missions[id]), false),
     lastLesson: () => withP((p) => p.last, null),
 
-    // 오늘의 퍼즐: 걸린 초를 남긴다(같은 날 다시 풀면 더 빠른 기록). help: 힌트 3단계로 채운 판.
-    // 혼자 푼 기록이 힌트 도움 기록보다 우선한다.
+    // 오늘의 퍼즐: 날짜 × 난이도 × 퍼즐마다 걸린 초를 남긴다(같은 날 같은 난이도를 다시 풀면 더 빠른 기록).
+    // help: 힌트 3단계로 채운 판. 혼자 푼 기록이 힌트 도움 기록보다 우선한다. 난이도를 모르면 쉬움.
     recordDaily(date, which, seconds, gen, level, help = false) {
       withP((p) => {
-        if (!DATE_RE.test(date) || !['sudoku', 'cats'].includes(which)) return;
-        const e = p.daily[date] || {};
+        if (!DATE_RE.test(date) || !PUZZLES.includes(which)) return;
         const s = secs(seconds);
         if (s === null) return;
-        const hk = which + 'Help';
-        if (help) {
-          if (e[which] === undefined) { e[which] = s; e[hk] = true; } else if (e[hk]) e[which] = Math.min(e[which], s);
-        } else if (e[which] === undefined || e[hk]) { e[which] = s; delete e[hk]; } else e[which] = Math.min(e[which], s);
-        if (Number.isInteger(gen)) e.gen = gen;
-        if (LEVELS.includes(level)) e.level = level;
-        p.daily[date] = e;
+        const lv = LEVELS.includes(level) ? level : 'easy';
+        const day = p.daily[date] || {};
+        const add = { [which]: s };
+        if (help) add[which + 'Help'] = true;
+        if (Number.isInteger(gen)) add.gen = gen;
+        day[lv] = mergeLevelEntry(day[lv], add);
+        if (Number.isInteger(gen)) day[lv].gen = gen;
+        p.daily[date] = day;
         p.daily = cleanDaily(p.daily);
         save();
       });
     },
-    dailyOf: (date) => withP((p) => p.daily[date] || null, null),
-    dailyAll: () => withP((p) => ({ ...p.daily }), {}),
+    // level 을 주면 그 난이도 칸, 안 주면 하루 전체 { easy, normal, hard }
+    dailyOf: (date, level) => withP((p) => { const d = p.daily[date]; if (!d) return null; return level ? (d[level] || null) : JSON.parse(JSON.stringify(d)); }, null),
+    dailyAll: () => withP((p) => JSON.parse(JSON.stringify(p.daily)), {}),
 
     // 퍼즐별 최고 기록(초). 더 빠르면 바꾸고 true
     recordBest(key, seconds) {
@@ -213,10 +287,24 @@ export function createStore(storage) {
     },
     bestAll: () => withP((p) => ({ ...p.best }), {}),
 
-    // 진행 중인 퍼즐 하나(자동 저장)
-    saveProgress(key, state) { withP((p) => { p.inProgress = cleanInProgress({ key, state, at: Date.now() }); save(); }); },
-    progress: () => withP((p) => p.inProgress, null),
-    clearProgress() { withP((p) => { p.inProgress = null; save(); }); },
+    // 진행 중인 퍼즐(자동 저장): 퍼즐마다 한 칸. key: daily-sd|ct-날짜-난이도 또는 free
+    saveProgress(key, state, now = Date.now()) {
+      withP((p) => {
+        if (!PROGRESS_KEY_RE.test(key)) return;
+        const c = cleanProgressItem({ state, at: now });
+        if (!c) return;
+        const map = { ...p.progress, [key]: c };
+        p.progress = cleanProgress(key === 'free' ? map : pruneProgressMap(map, key.slice(9, 19)));
+        save();
+      });
+    },
+    progressOf: (key) => withP((p) => (p.progress[key] ? { key, ...p.progress[key] } : null), null),
+    progressKeys: () => withP((p) => Object.keys(p.progress), []),
+    clearProgress(key) { withP((p) => { if (p.progress[key]) { delete p.progress[key]; save(); } }); },
+    // 오늘이 아닌 날의 오늘의 퍼즐 진행을 지운다
+    pruneProgress(today) {
+      withP((p) => { const next = pruneProgressMap(p.progress, today); if (Object.keys(next).length !== Object.keys(p.progress).length) { p.progress = next; save(); } });
+    },
 
     addReview(key) {
       withP((p) => {

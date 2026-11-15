@@ -210,8 +210,11 @@ function screenHome() {
   const st = APP.store;
   const now = new Date();
   const date = todayKey(now);
-  const rec = st.dailyOf(date) || {};
   const level = st.level();
+  // 기록은 날짜 × 난이도 × 퍼즐. 카드는 지금 고른 난이도, 아래 줄은 세 난이도를 한눈에
+  const dayAll = st.dailyOf(date) || {};
+  const rec = dayAll[level] || {};
+  const flags = dayFlags(dayAll);
   const size = DAILY_SIZES[level];
   const isDone = (id) => st.isDone(id);
   const pathTile = (p) => {
@@ -234,12 +237,12 @@ function screenHome() {
   const contPath = last && last.startsWith('C') ? 'ct' : 'sd';
   const next = nextLesson(contPath, isDone) || nextLesson(contPath === 'sd' ? 'ct' : 'sd', isDone);
   const nextInfo = next ? findLesson(next.id) : null;
-  const progress = st.progress();
+  const progress = ['sd', 'ct'].map((w) => st.progressOf(`daily-${w}-${date}-${level}`)).filter(Boolean).sort((a, b) => b.at - a.at)[0] || null;
   let cont = '';
   const progWhich = progress && /^daily-/.test(progress.key) && progress.key.includes(date) ? (progress.key.startsWith('daily-sd') ? 'sudoku' : 'cats') : null;
   if (progWhich && rec[progWhich] === undefined) {
     cont = contTile('이어서 하기', progress.key.startsWith('daily-sd') ? '오늘의 스도쿠' : '오늘의 고양이 자리', fmtTime(progress.state.t || 0) + ' 진행', '#/daily/' + (progress.key.startsWith('daily-sd') ? 'sd' : 'ct'));
-  } else if (!st.totalStars() && rec.sudoku === undefined && rec.cats === undefined) {
+  } else if (!st.totalStars() && !flags.sudoku && !flags.cats) {
     cont = `<div class="tile span2 rise"><div class="cont-row"><div class="grow"><div class="t-label c-acc">처음이에요</div><div class="t-sub">스도쿠 1차시부터 해 볼까요</div><div class="t-small c-sub">규칙을 익히고 오늘의 퍼즐로 가요</div></div><button class="btn primary" data-act="nav" data-arg="#/lesson/S01">시작하기</button></div></div>`;
   } else if (next) {
     const idx = nextInfo.index + 1;
@@ -254,6 +257,7 @@ function screenHome() {
       <div class="tile span2 rise">
         <div class="row-between"><span class="t-sub">오늘의 퍼즐</span><button class="chip btnchip" data-act="level" aria-label="오늘의 퍼즐 난이도 바꾸기">${LEVEL_LABEL[level]}${icon('chev', 's16')}</button></div>
         <div class="today">${half('sd', '스도쿠', size.sd)}${half('ct', '고양이 자리', size.ct)}</div>
+        ${levelSummary(dayAll, level)}
       </div>
       ${cont}
       ${PATHS.map(pathTile).join('')}
@@ -267,6 +271,17 @@ function screenHome() {
     ${installCard()}
     ${APP.store.canSave() ? '' : `<div class="banner" role="status">${icon('cloudoff')}<span>이 기기에서는 기록을 저장할 수 없어요. 창을 닫으면 기록이 사라져요.</span></div>`}
   </div>`;
+}
+// 오늘 난이도별 기록 한 줄: 「쉬움 ✓ · 보통 1/2 · 어려움」(✓ 두 퍼즐 모두, 1/2 하나)
+function levelSummary(dayAll, cur) {
+  const said = [];
+  const items = LEVELS.map((lv) => {
+    const e = dayAll[lv] || {};
+    const n = (e.sudoku !== undefined ? 1 : 0) + (e.cats !== undefined ? 1 : 0);
+    said.push(`${LEVEL_LABEL[lv]} ${n === 2 ? '두 퍼즐 모두 풂' : n === 1 ? (e.sudoku !== undefined ? '스도쿠 풂' : '고양이 자리 풂') : '아직'}`);
+    return `<span class="lv${lv === cur ? ' cur' : ''}${n ? ' on' : ''}">${LEVEL_LABEL[lv]}${n === 2 ? icon('check', 's16') : n === 1 ? '<small class="num">1/2</small>' : ''}</span>`;
+  });
+  return `<div class="lvsum t-small" role="note" aria-label="오늘 난이도별 기록: ${said.join(', ')}"><span class="c-sub" aria-hidden="true">오늘 푼 것</span><span class="lvs" aria-hidden="true">${items.join('<i>·</i>')}</span></div>`;
 }
 function contTile(label, title, sub, hash) {
   return `<div class="tile span2 rise"><div class="cont-row"><div class="grow"><div class="t-label c-acc">${label}</div><div class="t-sub">${uiEsc(title)}</div><div class="t-small c-sub">${uiEsc(sub)}</div></div><button class="btn primary" data-act="nav" data-arg="${hash}">이어서</button></div></div>`;
@@ -347,7 +362,6 @@ function finishLesson() {
   const stars = starsFor(L.mistakes, L.hints);
   L.stars = stars;
   if (L.isMission) APP.store.completeMission(L.id); else APP.store.completeLesson(L.id, stars);
-  APP.store.clearProgress();
   APP.play = null;
   render();
 }
@@ -599,7 +613,7 @@ function screenLessonDone() {
   const starRow = [1, 2, 3].map((k) => `<svg class="i star-big pop${k <= stars ? ' on' : ''}" style="animation-delay:${k * 60}ms" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
   const nextBtn = nextMission ? `<button class="btn primary block" data-act="nav" data-arg="#/mission/${nextMission.id}">단원 미션 하기</button>`
     : next ? `<button class="btn primary block" data-act="nav" data-arg="#/lesson/${next.id}">${String(f.index + 2).padStart(2, '0')} ${uiEsc(next.title)} 시작하기</button>` : '';
-  const dailyRec = APP.store.dailyOf(todayKey()) || {};
+  const dailyRec = APP.store.dailyOf(todayKey(), APP.store.level()) || {};
   // 첫 방문(1차시를 처음 마침)에는 「오늘의 스도쿠 풀기」가 주 단추, 다음 차시는 보조
   const firstVisit = L.id === 'S01' && dailyRec.sudoku === undefined && APP.store.totalStars() <= 3;
   const dailyBtn = dailyRec.sudoku === undefined ? `<button class="btn ${firstVisit ? 'primary' : 'secondary'} block" data-act="nav" data-arg="#/daily/sd">오늘의 스도쿠 풀기</button>` : '';
@@ -616,16 +630,18 @@ function screenLessonDone() {
 
 // ── 오늘의 퍼즐·자유 연습 ──
 function startDaily(which) {
-  if (APP.play && APP.play.ctx === 'daily' && APP.play.which === which) return;
   if (which !== 'sd' && which !== 'ct') { APP.play = null; return; }
   const d = todayDaily();
+  // 진행 중 저장과 기록은 날짜 × 난이도 × 퍼즐마다 따로. 난이도를 바꿨다 돌아와도 하던 판이 이어진다
+  const key = `daily-${which}-${d.date}-${d.level}`;
+  if (APP.play && APP.play.ctx === 'daily' && APP.play.key === key) return;
   const src = which === 'sd' ? { kind: 'sd', n: d.sudoku.n, puzzle: d.sudoku.puzzle, solution: d.sudoku.solution } : { kind: 'ct', n: d.cats.n, region: d.cats.region, solution: d.cats.solution };
   const g = newGame(src, { mode: 'daily', challenge: APP.settings.challenge });
-  const key = `daily-${which}-${d.date}-${d.level}`;
-  const prog = APP.store.progress();
-  if (prog && prog.key === key) gameRestore(g, prog.state);
-  const rec = APP.store.dailyOf(d.date) || {};
-  const solvedBefore = rec[which === 'sd' ? 'sudoku' : 'cats'] !== undefined;
+  const prog = APP.store.progressOf(key);
+  if (prog) gameRestore(g, prog.state);
+  const rec = APP.store.dailyOf(d.date, d.level) || {};
+  const w = which === 'sd' ? 'sudoku' : 'cats';
+  const solvedBefore = rec[w] !== undefined ? { sec: rec[w], help: Boolean(rec[w + 'Help']) } : null;
   APP.lesson = null;
   APP.play = { ctx: 'daily', which, key, date: d.date, level: d.level, gen: d.gen, g, x: null, hint: null, feedback: null, pick: [], title: which === 'sd' ? '오늘의 스도쿠' : '오늘의 고양이 자리', sub: `${g.n}×${g.n} · ${LEVEL_LABEL[d.level]}`, solvedBefore };
 }
@@ -660,7 +676,7 @@ function screenPlay() {
   const hearts = g.hearts !== null ? `<span class="hearts" aria-label="하트 ${g.hearts}개">${[0, 1, 2].map((k) => `<i class="${k < g.hearts ? 'on' : ''}"></i>`).join('')}</span>` : '';
   const timer = APP.settings.timer ? `<span class="status t-label c-ink2 num">${icon('timer', 's20')}<span data-timer>${fmtTime(g.elapsed)}</span></span>` : '';
   const back = P.ctx === 'free' ? '#/practice' : '#/';
-  const top = `<div class="qbar"><button class="iconbtn" data-act="nav" data-arg="${back}" aria-label="뒤로">${icon('back')}</button><div class="grow"><div class="t-body-b">${uiEsc(P.title)}</div><div class="t-small c-sub">${uiEsc(P.sub)}</div></div>${hearts}${timer}</div>`;
+  const top = `<div class="qbar"><button class="iconbtn" data-act="nav" data-arg="${back}" aria-label="뒤로">${icon('back')}</button><div class="grow"><div class="t-body-b">${uiEsc(P.title)}</div><div class="t-small c-sub">${uiEsc(P.sub)}</div></div>${hearts}${timer}</div>${P.ctx === 'daily' && P.solvedBefore ? `<div class="solved-note t-small" role="note">${icon('check', 's16')}<span>${P.solvedBefore.help ? '이 문제는 오늘 힌트와 함께 끝까지 했어요' : `이 문제는 오늘 이미 풀었어요(<span class="num">${fmtTime(P.solvedBefore.sec)}</span>)`}</span></div>` : ''}`;
   if (g.hearts === 0) {
     return top + `<div class="result"><span aria-hidden="true">${pieceSvg('cat', 'sorry', 96)}</span><div class="t-title">하트를 다 썼어요</div><p class="t-body c-ink2">도전 모드에서는 틀린 수를 세 번까지 봐줘요. 처음부터 다시 하거나, 하트 없이 이어서 풀 수 있어요.</p></div><div class="foot"><button class="btn primary block" data-act="continuenohearts">하트 없이 이어서</button><button class="btn text" data-act="restart">처음부터</button></div>`;
   }
@@ -674,7 +690,7 @@ function screenPlayDone() {
   const best = P.bestSec;
   let other = '';
   if (P.ctx === 'daily') {
-    const rec = APP.store.dailyOf(P.date) || {};
+    const rec = APP.store.dailyOf(P.date, P.level) || {};
     const otherWhich = isSd ? 'ct' : 'sd';
     const otherDone = rec[otherWhich === 'sd' ? 'sudoku' : 'cats'] !== undefined;
     other = otherDone ? '' : `<button class="btn primary block" data-act="nav" data-arg="#/daily/${otherWhich}">${otherWhich === 'sd' ? '스도쿠도 풀기' : '고양이 자리도 풀기'}</button>`;
@@ -698,10 +714,10 @@ function weekStrip(dateKey) {
   for (let k = 0; k < 7; k++) {
     const day = new Date(monday); day.setDate(monday.getDate() + k);
     const key = todayKey(day);
-    const rec = all[key] || {};
-    // 혼자 푼 것만 체크, 힌트와 함께 끝낸 날은 작은 점
-    const solo = ['sudoku', 'cats'].filter((w) => rec[w] !== undefined && !rec[w + 'Help']);
-    const help = ['sudoku', 'cats'].some((w) => rec[w] !== undefined && rec[w + 'Help']);
+    // 혼자 푼 것만 체크(어느 난이도든), 힌트와 함께만 끝낸 날은 작은 점
+    const f = dayFlags(all[key]);
+    const solo = ['sudoku', 'cats'].filter((w) => f[w] === 'solo');
+    const help = ['sudoku', 'cats'].some((w) => f[w] === 'help');
     const isToday = key === dateKey;
     const cls = solo.length === 2 ? 'd' : solo.length ? 'h' : help ? 'p' : isToday ? 't' : '';
     const label = solo.length ? '혼자 푼 날' : help ? '힌트 도움 받은 날' : '';
@@ -719,7 +735,6 @@ function onGameChanged() {
     const x = P.x;
     if ((x.t === 'solve' || x.t === 'guided') && gameIsDone(g)) {
       lessonCorrect(x.t === 'guided' ? '따라 풀기를 끝까지 마쳤어요.' : '끝까지 풀었어요.');
-      if (APP.lesson.isMission) APP.store.clearProgress();
     }
   }
   render();
@@ -742,7 +757,7 @@ function finishPlay() {
     P.newBest = assisted ? false : APP.store.recordBest(P.bestKey, sec);
     P.bestSec = APP.store.bestAll()[P.bestKey];
   }
-  APP.store.clearProgress();
+  APP.store.clearProgress(P.ctx === 'daily' ? P.key : 'free');
   render();
 }
 
@@ -949,8 +964,8 @@ function screenRecords() {
   const today = todayKey(now);
   for (let d = 1; d <= days; d++) {
     const key = todayKey(new Date(m.y, m.m, d));
-    const rec = all[key];
-    const sd = rec && rec.sudoku !== undefined, ct = rec && rec.cats !== undefined;
+    const f = dayFlags(all[key]);
+    const sd = Boolean(f.sudoku), ct = Boolean(f.cats);
     if (sd || ct) solvedDays++;
     const label = `${m.m + 1}월 ${d}일${sd && ct ? ', 두 퍼즐 모두 풂' : sd ? ', 스도쿠 풂' : ct ? ', 고양이 자리 풂' : ''}`;
     grid += `<span class="day${sd && ct ? ' both' : sd || ct ? ' half' : ''}${key === today ? ' today' : ''}" aria-label="${label}"><b class="num">${d}</b>${sd || ct ? `<i class="dots">${sd ? '<i class="a"></i>' : ''}${ct ? '<i class="b"></i>' : ''}</i>` : ''}</span>`;
@@ -1112,7 +1127,13 @@ function levelSheet() {
     label: '오늘의 퍼즐 난이도',
     html: () => {
       const cur = APP.store.level();
-      const row = (lv, desc) => `<button class="li choice" data-act="setlevel" data-arg="${lv}" aria-pressed="${cur === lv}"><span class="grow"><span class="t-body-b">${LEVEL_LABEL[lv]}</span><br><span class="t-small c-sub">${desc}</span></span>${cur === lv ? icon('check', 'c-acc') : ''}</button>`;
+      const day = APP.store.dailyOf(todayKey()) || {};
+      // 난이도마다 오늘 두 퍼즐을 풀었는지
+      const status = (lv) => {
+        const e = day[lv] || {};
+        return [['sudoku', '스도쿠'], ['cats', '고양이 자리']].map(([w, name]) => e[w] === undefined ? `<span class="st">${name} 아직</span>` : `<span class="st on">${icon('check', 's16')}${name} ${e[w + 'Help'] ? '힌트와 함께' : `<span class="num">${fmtTime(e[w])}</span>`}</span>`).join('');
+      };
+      const row = (lv, desc) => `<button class="li choice" data-act="setlevel" data-arg="${lv}" aria-pressed="${cur === lv}"><span class="grow"><span class="t-body-b">${LEVEL_LABEL[lv]}</span><br><span class="t-small c-sub">${desc}</span><span class="lvstat t-small">${status(lv)}</span></span>${cur === lv ? icon('check', 'c-acc') : ''}</button>`;
       return `<div class="t-head">오늘의 퍼즐 난이도</div><p class="t-small c-sub">같은 난이도를 고른 가족은 같은 문제를 받아요.</p><div class="list sheet-list">${row('easy', '스도쿠 6×6 · 고양이 자리 6×6')}${row('normal', '스도쿠 9×9 · 고양이 자리 7×7')}${row('hard', '스도쿠 9×9 · 고양이 자리 8×8')}</div>`;
     },
   };
@@ -1273,6 +1294,7 @@ setInterval(() => {
 
 // 시작
 applyTheme();
+APP.store.pruneProgress(todayKey());
 if (shouldShowNews(APP.settings, APP.store.profiles().length > 0)) {
   APP.dialog = { html: `<div class="t-head">새로 생긴 것</div>${newsList(newsSince(APP.settings.seen))}<div class="acts"><button class="btn primary" data-act="dialogok">좋아요</button></div>`, onOk: () => setSetting('seen', APP_VERSION) };
 } else if (!APP.store.profiles().length) APP.settings = saveSettings(uiStorage, { ...APP.settings, seen: APP_VERSION });

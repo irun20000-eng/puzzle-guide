@@ -1,5 +1,5 @@
 // 기기 설정과 "새로 생긴 것" 안내. 프로필과 상관없이 기기마다 하나(바둑 첫걸음 settings 를 고쳐 씀).
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.2';
 export const SETTINGS_KEY = 'puzzle-guide:settings';
 export const THEMES = ['auto', 'light', 'dark'];
 export const PIECES = ['cat', 'star'];
@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export const WHATS_NEW = [
+  { v: '1.0.2', title: '오늘의 퍼즐 기록을 난이도마다', text: '쉬움·보통·어려움을 따로 기록해요. 놀이터 카드와 난이도 고르기에서 오늘 어느 난이도를 풀었는지 보이고, 난이도를 바꿨다 돌아와도 풀던 판이 이어져요.' },
   { v: '1.0.1', title: '홈 화면에 앱으로 설치', text: '놀이터 아래나 더보기에서 「홈 화면에 앱으로 설치」를 누르면 주소창 없이 앱처럼 열려요. 설치 창이 뜨지 않는 기기에는 방법을 차례로 알려 줘요.' },
   { v: '1.0.0', title: '퍼즐 놀이터를 열었어요', text: '스도쿠 18차시와 고양이 자리 14차시, 단원 미션 10개를 차례로 풀어 볼 수 있어요.' },
   { v: '1.0.0', title: '다음 한 수를 알려 주는 힌트', text: '막히면 힌트를 눌러요. 어디를 볼지, 왜 그런지, 어떻게 하는지 세 번에 나눠 알려 줘요.' },
