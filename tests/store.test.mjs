@@ -31,18 +31,20 @@ test('진행도: 별은 가장 좋은 기록, 미션, 오늘의 퍼즐, 최고 �
   s.recordDaily('2026-11-14', 'sudoku', 312.4, 1, 'normal');
   s.recordDaily('2026-11-14', 'sudoku', 400, 1, 'normal');
   s.recordDaily('2026-11-14', 'cats', 205, 1, 'normal');
-  assert.deepEqual(s.dailyOf('2026-11-14'), { sudoku: 312, cats: 205, gen: 1, level: 'normal' });
+  assert.deepEqual(s.dailyOf('2026-11-14'), { normal: { sudoku: 312, cats: 205, gen: 1 } });
+  assert.deepEqual(s.dailyOf('2026-11-14', 'normal'), { sudoku: 312, cats: 205, gen: 1 });
+  assert.equal(s.dailyOf('2026-11-14', 'easy'), null);
   assert.equal(s.recordBest('sd-9-easy', 420), true);
   assert.equal(s.recordBest('sd-9-easy', 500), false);
   assert.equal(s.recordBest('sd-9-easy', 300), true);
-  s.saveProgress('S03#2', { values: '1.2.', sec: 12 });
+  s.saveProgress('daily-sd-2026-11-14-normal', { values: '1.2.', sec: 12 });
   // 다시 열어도 그대로
   const again = createStore(mem);
   assert.equal(again.starsOf('S01'), 2);
   assert.equal(again.bestAll()['sd-9-easy'], 300);
-  assert.equal(again.progress().key, 'S03#2');
-  again.clearProgress();
-  assert.equal(again.progress(), null);
+  assert.equal(again.progressOf('daily-sd-2026-11-14-normal').state.sec, 12);
+  again.clearProgress('daily-sd-2026-11-14-normal');
+  assert.equal(again.progressOf('daily-sd-2026-11-14-normal'), null);
 });
 
 test('저장: 깨진 자료, 막힌 저장소에서도 동작', () => {
@@ -65,7 +67,7 @@ test('기록 내보내기·가져오기 왕복, 다른 앱 파일과 망가진 �
   const t = createStore(memoryStorage());
   assert.deepEqual(t.importBackup(file), { ok: true, count: 1 });
   assert.equal(t.starsOf('C01'), 3);
-  assert.equal(t.dailyOf('2026-11-01').cats, 99);
+  assert.equal(t.dailyOf('2026-11-01', 'easy').cats, 99);
   assert.equal(validateBackup('not json').error, 'format');
   assert.equal(validateBackup({ app: 'baduk-guide', kind: 'backup', data: { profiles: [] } }).error, 'app');
   assert.equal(validateBackup({ app: 'puzzle-guide', kind: 'backup', data: { version: 1, profiles: [{ id: 'p1', name: '가', done: {} }, { id: 'p1', name: '나', done: {} }] } }).error, 'profiles');
@@ -79,12 +81,13 @@ test('설정: 기본값, 잘못된 값 거르기, 화면 밝기, 새로 생긴 �
   assert.equal(loadSettings(mem).challenge, true);
   assert.equal(resolveTheme('auto', true), 'dark');
   assert.equal(resolveTheme('auto', false), 'light');
-  assert.equal(APP_VERSION, '1.0.1');
-  assert.ok(WHATS_NEW.every((n) => ['1.0.0', '1.0.1'].includes(n.v)));
+  assert.equal(APP_VERSION, '1.0.2');
+  assert.ok(WHATS_NEW.every((n) => ['1.0.0', '1.0.1', '1.0.2'].includes(n.v)));
   assert.equal(WHATS_NEW[0].v, APP_VERSION);
   assert.equal(newsSince('').length, WHATS_NEW.length);
-  assert.equal(newsSince('1.0.0').length, 1);
-  assert.equal(newsSince('1.0.1').length, 0);
+  assert.equal(newsSince('1.0.0').length, 2);
+  assert.equal(newsSince('1.0.1').length, 1);
+  assert.equal(newsSince('1.0.2').length, 0);
   assert.equal(shouldShowNews({ seen: '' }, false), false);
   assert.equal(shouldShowNews({ seen: '' }, true), true);
 });

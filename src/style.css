@@ -392,3 +392,15 @@ button.tile:active{transform:scale(.98)}
 .inst-list{display:flex;flex-direction:column;gap:var(--sp-2)}
 .inst-block{background:var(--surface-2);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2)}
 .inst-steps{margin:0;padding-left:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-1)}
+.lvsum{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-3);flex-wrap:wrap}
+.lvsum .lvs{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;color:var(--sub)}
+.lvsum .lvs i{font-style:normal;color:var(--hair-strong)}
+.lvsum .lv{display:inline-flex;align-items:center;gap:2px}
+.lvsum .lv.on{color:var(--acc-ink)}
+.lvsum .lv.cur{font-weight:var(--fw-bold);color:var(--ink)}
+.lvsum .lv.cur.on{color:var(--acc-ink)}
+.lvsum .lv small{font-size:var(--fs-small);margin-left:2px}
+.lvstat{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-3);margin-top:var(--sp-1);color:var(--sub)}
+.lvstat .st{display:inline-flex;align-items:center;gap:2px}
+.lvstat .st.on{color:var(--acc-ink)}
+.solved-note{display:flex;align-items:center;gap:var(--sp-1);max-width:1180px;width:100%;margin:calc(var(--sp-1) * -1) auto var(--sp-1);padding:0 var(--gutter) 0 calc(var(--sp-1) + var(--tap) + var(--sp-2));color:var(--acc-ink)}
